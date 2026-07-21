@@ -1,3 +1,8 @@
 {
-  "dashboards": []
+  "dashboards": [
+    {
+      "name": "Talison Schedule Review",
+      "gasUrl": "https://script.google.com/macros/s/AKfycbwp4KdsvPWv2pON1iIOTjaJhYeLJpLZWBfShz2nBZRPCsCIeVH40o-GAURk9gPg7d-BZw/exec"
+    }
+  ]
 }
