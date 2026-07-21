@@ -276,8 +276,11 @@ async function generateReport(i) {
     // report still generates with a fallback notes section.
     showOverlay('Analysing field notes…');
     let insights = null;
+    let insightsSkipReason = '';
     try {
-      if (INSIGHTS_URL && INSIGHTS_URL !== 'CHANGE_ME') {
+      if (!INSIGHTS_URL || INSIGHTS_URL === 'CHANGE_ME') {
+        insightsSkipReason = 'INSIGHTS_URL not set in Report Hub';
+      } else {
         const fu = bundle.fieldupdates || { headers: [], rows: [] };
         const iTeamN  = fu.headers.indexOf('Team');
         const iNotesN = fu.headers.indexOf('Field Notes');
@@ -286,19 +289,24 @@ async function generateReport(i) {
               .map(r => ({ team: iTeamN >= 0 ? r[iTeamN] : '', note: r[iNotesN] }))
               .filter(n => n.note && String(n.note).trim())
           : [];
-        if (notes.length > 0) {
+        if (notes.length === 0) {
+          insightsSkipReason = 'no field notes to analyse';
+        } else {
           // No explicit Content-Type header — the browser sends this as a
           // "simple request" (text/plain), which avoids a CORS preflight
           // that Apps Script web apps don't handle. The GAS side just
           // JSON.parses the raw body regardless of the header.
           const ir = await fetch(INSIGHTS_URL, { method: 'POST', body: JSON.stringify({ notes }) });
-          if (ir.ok) {
+          if (!ir.ok) {
+            insightsSkipReason = 'insights endpoint returned HTTP ' + ir.status;
+          } else {
             const ij = await ir.json();
-            if (!ij.error) insights = ij;
+            if (ij.error) insightsSkipReason = ij.error;
+            else insights = ij;
           }
         }
       }
-    } catch (e) { /* fall back silently */ }
+    } catch (e) { insightsSkipReason = e.message; }
 
     showOverlay('Building Word document…');
     const blob = await buildReportDocx(bundle, d.name, insights);
@@ -312,7 +320,9 @@ async function generateReport(i) {
     a.remove();
     URL.revokeObjectURL(dlUrl);
 
-    setStatus(i, 'Report downloaded — generated ' + (bundle.generatedAt || ''), 'ok');
+    const statusMsg = 'Report downloaded — generated ' + (bundle.generatedAt || '')
+      + (insights ? '' : '  |  AI notes analysis skipped: ' + insightsSkipReason);
+    setStatus(i, statusMsg, insights ? 'ok' : '');
   } catch (e) {
     setStatus(i, 'Error: ' + e.message, 'err');
   } finally {
@@ -607,7 +617,7 @@ async function buildReportDocx(bundle, dashboardName, insights) {
             // Fallback: AI analysis not available (not configured, or call failed).
             // Show note volume by team rather than dumping every raw note.
             const out = [
-              body('AI analysis of field notes was not available for this report (not configured, or the analysis call failed). Showing note volume by team instead — configure ANTHROPIC_API_KEY in the dashboard\u2019s GAS Script Properties to enable full thematic analysis.', { italics: true, color: MUTED }),
+              body('AI analysis of field notes was not available for this report (INSIGHTS_URL not set in Report Hub, the NotesInsights project not deployed/configured, or the analysis call failed). Showing note volume by team instead.', { italics: true, color: MUTED }),
             ];
             const teams = Object.keys(notesByTeam);
             if (teams.length === 0) {
