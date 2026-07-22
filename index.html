@@ -16,7 +16,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Calibri Light','Calibri',system-ui,sans-serif;font-weight:300;min-height:100vh}
 header{
   background:var(--navy);color:#fff;padding:18px 28px;display:flex;align-items:center;gap:16px;
-  cursor:pointer;user-select:none;
+  cursor:pointer;user-select:none;position:relative;z-index:1300;
 }
 header img{height:38px}
 header h1{font-size:18px;font-weight:400;letter-spacing:.02em}
@@ -82,36 +82,57 @@ main{max-width:820px;margin:0 auto;padding:32px 20px}
   <span class="sub">End of Shutdown Schedule Reports</span>
 </header>
 
-<main>
-  <div id="adminPanel" class="admin-panel" style="display:none">
-    <h2>Admin — Notes Insights Endpoint</h2>
-    <div class="admin-row">
-      <input type="text" id="insightsUrlInput" placeholder="NotesInsights /exec URL (shared across all dashboards)">
-      <button class="btn" onclick="saveInsightsUrl()">Save</button>
-    </div>
-    <div class="hint" style="margin-top:0">
-      One shared endpoint used for every dashboard's AI field notes analysis. See the standalone
-      NotesInsights GAS project's deployed Web app URL.
-    </div>
+<div class="overlay show" id="gateOverlay" style="z-index:1200">
+  <div class="overlay-box" style="min-width:280px">
+    <div style="font-size:14px;color:var(--navy);margin-bottom:14px">Enter password to continue</div>
+    <input type="password" id="gatePasswordInput" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:9px 12px;font-family:inherit;font-size:14px;margin-bottom:12px" placeholder="Password">
+    <div id="gateError" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none">Incorrect password.</div>
+    <button class="btn" style="width:100%" onclick="checkGatePassword()">Continue</button>
+  </div>
+</div>
 
-    <h2 style="margin-top:24px">Admin — Configured Dashboards</h2>
-    <div class="admin-row">
-      <input type="text" id="newName" placeholder="Dashboard name (e.g. AngloGold Sunrise Dam)">
-      <input type="text" id="newUrl" placeholder="GAS Web App URL (…/exec)">
-      <button class="btn" onclick="addDashboard()">Add</button>
-    </div>
-    <div class="admin-list" id="adminList"></div>
-    <div style="margin-top:16px;display:flex;gap:10px">
-      <button class="btn btn-amber" onclick="copyConfig()">Copy Config JSON</button>
-      <button class="btn btn-ghost" onclick="closeAdmin()">Close Admin</button>
-    </div>
-    <div class="hint">
-      Changes here only apply to this browser until published. Click <strong>Copy Config JSON</strong>,
-      then paste the result into <code>config.json</code> in the REPORT-HUB repo and commit —
-      same workflow as the main Hub.
-    </div>
+<div id="adminPanel" class="admin-panel" style="display:none; max-width:820px; margin:20px auto 0; position:relative; z-index:1300">
+  <h2>Admin — Access Password</h2>
+  <div class="admin-row">
+    <input type="text" id="accessPasswordInput" placeholder="Password employees enter to view this app (blank = no password)">
+    <button class="btn" onclick="saveAccessPassword()">Save</button>
+  </div>
+  <div class="hint" style="margin-top:0">
+    Gates the whole app, not just this admin panel. Stored in <code>config.json</code>, same as the
+    Notes Insights URL — change it here any time without touching any code file. Note: this is a
+    basic gate for casual access control, not real security — <code>config.json</code> is a public
+    file anyone could open directly and read.
   </div>
 
+  <h2 style="margin-top:24px">Admin — Notes Insights Endpoint</h2>
+  <div class="admin-row">
+    <input type="text" id="insightsUrlInput" placeholder="NotesInsights /exec URL (shared across all dashboards)">
+    <button class="btn" onclick="saveInsightsUrl()">Save</button>
+  </div>
+  <div class="hint" style="margin-top:0">
+    One shared endpoint used for every dashboard's AI field notes analysis. See the standalone
+    NotesInsights GAS project's deployed Web app URL.
+  </div>
+
+  <h2 style="margin-top:24px">Admin — Configured Dashboards</h2>
+  <div class="admin-row">
+    <input type="text" id="newName" placeholder="Dashboard name (e.g. AngloGold Sunrise Dam)">
+    <input type="text" id="newUrl" placeholder="GAS Web App URL (…/exec)">
+    <button class="btn" onclick="addDashboard()">Add</button>
+  </div>
+  <div class="admin-list" id="adminList"></div>
+  <div style="margin-top:16px;display:flex;gap:10px">
+    <button class="btn btn-amber" onclick="copyConfig()">Copy Config JSON</button>
+    <button class="btn btn-ghost" onclick="closeAdmin()">Close Admin</button>
+  </div>
+  <div class="hint">
+    Changes here only apply to this browser until published. Click <strong>Copy Config JSON</strong>,
+    then paste the result into <code>config.json</code> in the REPORT-HUB repo and commit —
+    same workflow as the main Hub.
+  </div>
+</div>
+
+<main id="mainContent" style="display:none">
   <div id="cardList"></div>
   <div id="emptyMsg" class="empty" style="display:none">No dashboards configured yet.</div>
 </main>
@@ -131,6 +152,7 @@ main{max-width:820px;margin:0 auto;padding:32px 20px}
 // ══════════════════════════════════════════════════════════
 const CONFIG_URL = './config.json';          // committed to this repo
 const LS_KEY     = 'reporthub_config_draft'; // local working copy (admin only)
+const SESSION_KEY = 'reporthub_unlocked';    // per-browser-tab-session gate unlock flag
 const ADMIN_PIN  = '1234';              // set to match the main Hub's admin PIN
 // INSIGHTS_URL lives in config.json now (set via the admin panel), not here —
 // that way it survives future index.html file swaps instead of resetting
@@ -160,7 +182,34 @@ async function loadConfig() {
   }
   renderCards();
   renderAdminList();
+  checkGate();
 }
+
+function checkGate() {
+  const pw = (_config.accessPassword || '').trim();
+  const alreadyUnlocked = sessionStorage.getItem(SESSION_KEY) === '1';
+  if (!pw || alreadyUnlocked) {
+    document.getElementById('gateOverlay').classList.remove('show');
+    document.getElementById('mainContent').style.display = 'block';
+  }
+  // else: gate overlay stays visible (it's shown by default in the HTML)
+}
+
+function checkGatePassword() {
+  const input = document.getElementById('gatePasswordInput').value;
+  const pw = (_config.accessPassword || '').trim();
+  if (input === pw) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    document.getElementById('gateOverlay').classList.remove('show');
+    document.getElementById('mainContent').style.display = 'block';
+  } else {
+    document.getElementById('gateError').style.display = 'block';
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('gatePasswordInput');
+  if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') checkGatePassword(); });
+});
 
 function saveDraft() {
   localStorage.setItem(LS_KEY, JSON.stringify(_config));
@@ -212,6 +261,7 @@ document.getElementById('hdr').addEventListener('click', () => {
 function openAdmin() {
   document.getElementById('adminPanel').style.display = 'block';
   document.getElementById('insightsUrlInput').value = _config.insightsUrl || '';
+  document.getElementById('accessPasswordInput').value = _config.accessPassword || '';
 }
 function closeAdmin() { document.getElementById('adminPanel').style.display = 'none'; }
 
@@ -220,6 +270,14 @@ function saveInsightsUrl() {
   _config.insightsUrl = url;
   saveDraft();
   alert('Saved to this browser. Click Copy Config JSON below and publish to make it apply for everyone.');
+}
+
+function saveAccessPassword() {
+  const pw = document.getElementById('accessPasswordInput').value.trim();
+  _config.accessPassword = pw;
+  saveDraft();
+  alert('Saved to this browser. Click Copy Config JSON below and publish to make it apply for everyone.'
+    + (pw ? '' : ' (Blank means no password — anyone with the link can open the app.)'));
 }
 
 function renderAdminList() {
