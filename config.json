@@ -1,8 +1,12 @@
 {
   "dashboards": [
     {
-      "name": "Talison Schedule Review",
+      "name": "Talison Schedule Review Dashboard 1",
       "gasUrl": "https://script.google.com/macros/s/AKfycbwp4KdsvPWv2pON1iIOTjaJhYeLJpLZWBfShz2nBZRPCsCIeVH40o-GAURk9gPg7d-BZw/exec"
+    },
+    {
+      "name": "Talison Schedule Review Dashboard 2",
+      "gasUrl": "https://script.google.com/macros/s/AKfycbzbe62fnlPIZnsNUtdjFhUwelykW6zqHP6_UkhYl1JyQX6R27y8YS2VTnDEIFkBYYSqYw/exec"
     }
   ]
 }
