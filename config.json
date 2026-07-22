@@ -1,4 +1,13 @@
 {
-  "insightsUrl": "",
-  "dashboards": []
+  "insightsUrl": "https://script.google.com/macros/s/AKfycbwh_sFIP31eAFVCQnMsU6RB37aU2xjGVQ8x1wX76Zp6B6g-XH9tVMkA_a2zq9xmiDOr-w/exec",
+  "dashboards": [
+    {
+      "name": "Talison Dashboard1",
+      "gasUrl": "https://script.google.com/macros/s/AKfycbwp4KdsvPWv2pON1iIOTjaJhYeLJpLZWBfShz2nBZRPCsCIeVH40o-GAURk9gPg7d-BZw/exec"
+    },
+    {
+      "name": "Talison Dashboard2",
+      "gasUrl": "https://script.google.com/macros/s/AKfycbzbe62fnlPIZnsNUtdjFhUwelykW6zqHP6_UkhYl1JyQX6R27y8YS2VTnDEIFkBYYSqYw/exec"
+    }
+  ]
 }
